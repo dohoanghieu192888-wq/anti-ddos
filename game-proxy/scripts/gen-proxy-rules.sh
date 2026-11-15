@@ -46,8 +46,10 @@ for spec in "${PORTS[@]}"; do
 	esac
 done
 
+AP_ITEMS=()
 for ap in ${ADMIN_PORTS:-}; do
 	[[ $ap =~ ^[0-9]{1,5}(-[0-9]{1,5})?$ ]] || continue
+	AP_ITEMS+=("$ap")
 	RULES+=("tcp dport $ap dnat ip to $WIN_IP")
 	RULES+=("udp dport $ap dnat ip to $WIN_IP")
 done
@@ -63,9 +65,9 @@ sip=${sip%% *}
 [[ $sip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ && $sip != 127.0.0.1 ]] && ADM+=("$sip")
 
 ADM_DECL=""
-[[ ${#ADM[@]} -gt 0 ]] && ADM_DECL="elements = { $(join "${ADM[@]}"); };"
+[[ ${#ADM[@]} -gt 0 ]] && ADM_DECL="elements = { $(join "${ADM[@]}") };"
 AP_DECL=""
-[[ -n ${ADMIN_PORTS:-} ]] && AP_DECL="elements = { $(join ${ADMIN_PORTS// /, }); };"
+[[ ${#AP_ITEMS[@]} -gt 0 ]] && AP_DECL="elements = { $(join "${AP_ITEMS[@]}") };"
 
 GEO_JUMPS=""
 [[ ${GEO_MODE:-vn-only} == vn-only ]] && GEO_JUMPS=$'tcp dport @game_ports jump geo_allow\n\t\tudp dport @game_ports jump geo_allow'
