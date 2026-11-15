@@ -130,7 +130,7 @@ EOF
 EOF
 	fi
 	echo "}"
-} >"$OUT"
+} >"$OUT.tmp"
 
 {
 	echo "table inet filter {"
@@ -139,10 +139,18 @@ EOF
 	[[ $LAN_IF != "$WAN_IF" ]] && printf '\t\toifname "%s" ip daddr %s counter accept\n' "$LAN_IF" "$WIN_IP"
 	echo "	}"
 	echo "}"
-} >"$FWD"
+} >"$FWD.tmp"
 
-nft -c -f "$OUT" || die "ruleset sinh ra sai cú pháp"
-nft -c -f "$FWD" || die "forward rule sai cú pháp"
+if ! nft -c -f "$OUT.tmp"; then
+	rm -f "$OUT.tmp" "$FWD.tmp"
+	die "ruleset sai cú pháp, giữ nguyên cấu hình cũ"
+fi
+if ! nft -c -f "$FWD.tmp"; then
+	rm -f "$OUT.tmp" "$FWD.tmp"
+	die "forward rule sai cú pháp, giữ nguyên cấu hình cũ"
+fi
+mv "$OUT.tmp" "$OUT"
+mv "$FWD.tmp" "$FWD"
 nft -f "$OUT"
 echo "đã áp dụng NAT cho ${#VPS_PORTS[@]} cổng: ${VPS_PORTS[*]}"
 

@@ -54,6 +54,20 @@ install -m 0644 "$D/blocklist/whitelist.txt" /etc/ddos/whitelist.txt
 printf '#!/usr/sbin/nft -f\n\ninclude "/etc/nftables.d/*.nft"\n' >/etc/nftables.conf
 chmod 0755 /etc/nftables.conf
 
+if ! nft -c -f /etc/nftables.conf 2>/tmp/ddos-nft.err; then
+	cat /tmp/ddos-nft.err >&2
+	for f in /etc/nftables.d/*.nft; do
+		nft -c -f "$f" >/dev/null 2>&1 && continue
+		case $f in
+		*/game-proxy.nft | */zz-proxy-forward.nft)
+			mv "$f" "$f.broken"
+			warn "ruleset tự sinh lỗi, đã chuyển sang $f.broken"
+			;;
+		*) echo "ruleset lỗi: $f" >&2 ;;
+		esac
+	done
+	nft -c -f /etc/nftables.conf || die "ruleset không hợp lệ, chưa áp dụng gì"
+fi
 nft -f /etc/nftables.conf || die "nạp ruleset thất bại"
 systemctl enable nftables >/dev/null 2>&1
 systemctl restart nftables >/dev/null 2>&1 || true
