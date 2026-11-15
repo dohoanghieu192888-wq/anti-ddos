@@ -171,7 +171,7 @@ Test từ Việt Nam: kết nối vào `IP_VPS:cổng` → vào game bình thư�
 | Vào được nhưng bị treo/timeout khi chơi | `FORWARD_MODE="dnat"` nhưng Windows chưa route reply về VPS → đổi `proxy` hoặc sửa route |
 | Người chơi Việt Nam vẫn bị chặn | Dải IP của nhà mạng chưa có trong danh sách → `sudo geoip-vn-update`; hoặc IP đó là VN nhưng qua VPN nước ngoài |
 | Bị chặn hết sau khi reboot | `sudo geoip-vn-update --cache-only`; kiểm tra `systemctl status ddos-geoip-boot` |
-| Không forward được gì | Thiếu rule accept trong `inet filter forward` → chạy lại `sudo gen-proxy-rules` (script tự thêm) |
+| Không forward được gì | Thiếu rule trong chain `proxy_fwd` → chạy lại `sudo gen-proxy-rules` (script tự sinh và nạp chain này) |
 | Thấy `conntrack: table full` | Tăng `net.netfilter.nf_conntrack_max` (đã đặt 1M ở `install.sh`) hoặc hạ `TCP_CONN_PER_IP` |
 | Muốn tạm tắt lọc quốc gia | Đổi `GEO_MODE="off"` rồi `sudo gen-proxy-rules` |
 
@@ -184,7 +184,7 @@ sudo nft delete table inet gameproxy
 sudo nft delete table inet gamefilter
 sudo systemctl disable --now ddos-geoip.timer ddos-geoip-boot.service
 sudo rm -f /etc/systemd/system/ddos-geoip*.service /etc/systemd/system/ddos-geoip.timer \
-           /etc/nftables.d/game-proxy.nft /etc/ddos/forward-extra.rules \
+           /etc/nftables.d/game-proxy.nft /etc/nftables.d/zz-proxy-forward.nft \
            /etc/sysctl.d/99-game-proxy.conf \
            /usr/local/sbin/gen-proxy-rules /usr/local/sbin/geoip-vn-update /usr/local/sbin/proxy-status
 sudo systemctl daemon-reload

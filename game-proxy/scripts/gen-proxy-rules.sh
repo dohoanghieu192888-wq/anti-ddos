@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 CONF=/etc/ddos/game-proxy.conf
 OUT=/etc/nftables.d/game-proxy.nft
-FWD=/etc/ddos/forward-extra.rules
+FWD=/etc/nftables.d/zz-proxy-forward.nft
 
 die() { echo "lỗi: $*" >&2; exit 1; }
 join() { local IFS=,; echo "$*"; }
@@ -131,17 +131,22 @@ EOF
 } >"$OUT"
 
 {
-	printf 'iifname "%s" ip daddr %s counter accept\n' "$WAN_IF" "$WIN_IP"
-	[[ $LAN_IF != "$WAN_IF" ]] && printf 'oifname "%s" ip daddr %s counter accept\n' "$LAN_IF" "$WIN_IP"
+	echo "table inet filter {"
+	echo "	chain proxy_fwd {"
+	printf '		iifname "%s" ip daddr %s counter accept\n' "$WAN_IF" "$WIN_IP"
+	[[ $LAN_IF != "$WAN_IF" ]] && printf '\t\toifname "%s" ip daddr %s counter accept\n' "$LAN_IF" "$WIN_IP"
+	echo "	}"
+	echo "}"
 } >"$FWD"
 
 nft -c -f "$OUT" || die "ruleset sinh ra sai cú pháp"
+nft -c -f "$FWD" || die "forward rule sai cú pháp"
 nft -f "$OUT"
 echo "đã áp dụng NAT cho ${#VPS_PORTS[@]} cổng: ${VPS_PORTS[*]}"
 
-if nft list chain inet filter forward >/dev/null 2>&1; then
-	nft list chain inet filter forward | grep -q "ip daddr $WIN_IP" \
-		|| nft insert rule inet filter forward ip daddr "$WIN_IP" counter accept
+if nft list chain inet filter proxy_fwd >/dev/null 2>&1; then
+	nft flush chain inet filter proxy_fwd
+	nft -f "$FWD"
 else
-	echo "cảnh báo: chưa có chain 'inet filter forward' (cài install.sh trước)" >&2
+	echo "cảnh báo: chưa có chain 'inet filter proxy_fwd' (cài install.sh trước)" >&2
 fi

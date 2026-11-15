@@ -40,7 +40,7 @@ BBR=0
 modprobe tcp_bbr 2>/dev/null && BBR=1 || warn "không có tcp_bbr, bỏ qua BBR"
 
 mkdir -p /etc/nftables.d /etc/ddos /etc/modprobe.d /etc/security/limits.d
-[[ -f /etc/ddos/forward-extra.rules ]] || : >/etc/ddos/forward-extra.rules
+rm -f /etc/ddos/forward-extra.rules
 
 info "kiểm tra ruleset"
 nft -c -f "$D/nftables/ddos.nft" || die "ruleset sai cú pháp, chưa thay đổi gì"

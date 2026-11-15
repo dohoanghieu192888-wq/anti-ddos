@@ -36,7 +36,6 @@ printf 'net.ipv4.ip_forward = 1\nnet.ipv4.conf.all.forwarding = 1\n' \
 sysctl -p /etc/sysctl.d/99-game-proxy.conf >/dev/null 2>&1 || true
 ok "ip_forward=$(sysctl -n net.ipv4.ip_forward)"
 
-[[ -f /etc/ddos/forward-extra.rules ]] || : >/etc/ddos/forward-extra.rules
 nft list chain inet filter input >/dev/null 2>&1 \
 	|| warn "chưa cài firewall chính (bash install.sh)"
 

@@ -53,6 +53,9 @@ table inet filter {
 	chain emergency {
 	}
 
+	chain proxy_fwd {
+	}
+
 	chain input {
 		type filter hook input priority filter; policy drop;
 
@@ -70,11 +73,11 @@ table inet filter {
 
 		icmp type echo-request limit rate 10/second burst 20 packets accept
 		icmp type { destination-unreachable, time-exceeded, parameter-problem } accept
-		icmp counter drop
+		meta l4proto icmp counter drop
 		icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem } accept
 		icmpv6 type { nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept
 		icmpv6 type echo-request limit rate 10/second burst 20 packets accept
-		icmpv6 counter drop
+		meta l4proto ipv6-icmp counter drop
 
 		udp dport { 19, 123, 137, 161, 389, 1900, 11211, 5353, 27015 } counter drop
 
@@ -103,7 +106,7 @@ table inet filter {
 		type filter hook forward priority filter; policy drop;
 
 		ct state established,related accept
-		include "/etc/ddos/forward-extra.rules"
+		jump proxy_fwd
 		counter
 	}
 
