@@ -488,7 +488,7 @@ def view_proxy(token, msg=""):
   </div>
   <div class="card"><h3>Cổng game</h3>
     <textarea name="PORTS" spellcheck="false">{h(chr(10).join(c["PORTS"]))}</textarea>
-    <p class="muted" style="font-size:12px">both 14445=local:7777 · tcp 8080=80 · both 27000-27030</p>
+    <p class="muted" style="font-size:12px">tcp 80=80 → http://IP-VPS/ → Windows:80 · tcp 8081=80 → IP-VPS:8081 → Windows:80 · both 27000-27030</p>
   </div>
   <div class="card"><h3>IP quản trị</h3>
     <textarea name="ADMIN_IPS" spellcheck="false">{h(chr(10).join(c["ADMIN_IPS"]))}</textarea>

@@ -70,9 +70,12 @@ git clone <repo> && cd anti-ddos
 # firewall + panel web
 sudo bash setup-all.sh
 
-# firewall + panel + shield game Windows (chỉ cho IP Việt Nam)
-sudo bash setup-all.sh --with-proxy --win-ip 10.10.0.5
+# firewall + panel + shield game Windows; mặc định VPS:80 -> Windows:80
+sudo bash setup-all.sh --with-proxy --win-ip 160.22.107.22
 ```
+
+Mặc định proxy công khai là `http://IP-VPS/` (TCP port 80) chuyển tới
+`160.22.107.22:80`; panel quản trị vẫn chạy riêng tại `http://IP-VPS:8080/`.
 
 Kết thúc script in ra: địa chỉ panel, tài khoản/mật khẩu (lưu ở
 `/root/ddos-panel-credentials.txt`) và tên đăng nhập SSH tunnel.
@@ -239,7 +242,7 @@ tái phạm thì thời gian ban tăng gấp đôi (tối đa 7 ngày).
 
 ## Panel web (1 file, không cần pip/node)
 
-Sau khi cài, panel chạy tại `http://127.0.0.1:8080` (chỉ loopback). Truy cập từ máy bạn:
+Sau khi cài, panel quản trị chạy riêng tại `http://127.0.0.1:8080` (mặc định chỉ loopback). Proxy game dùng port 80, không dùng port 8080.
 
 ```bash
 ssh -L 8080:127.0.0.1:8080 root@<IP-VPS>
@@ -257,8 +260,9 @@ Tài khoản/mật khẩu sinh ngẫu nhiên, xem `/root/ddos-panel-credentials.
 | **Log** | fail2ban + kernel log (các gói bị drop) |
 
 Bảo mật: đăng nhập bằng mật khẩu (PBKDF2-SHA256 120k vòng), session cookie
-`HttpOnly; SameSite=Strict;` + CSRF token, giới hạn 8 lần đăng nhập sai/5 phút,
-mặc định **chỉ nghe 127.0.0.1** nên phải qua SSH tunnel (không mở port ra Internet).
+`HttpOnly; SameSite=Strict;` + CSRF token, giới hạn 8 lần đăng nhập sai/5 phút.
+Để truy cập trực tiếp `http://IP-VPS:8080/`, cài với `--panel-bind 0.0.0.0` và giới hạn
+port 8080 bằng firewall/security group nếu có thể.
 
 ```bash
 systemctl status ddos-panel
@@ -267,23 +271,36 @@ journalctl -u ddos-panel -n 30
 sudo /usr/local/sbin/ddos-panel --init --force && sudo systemctl restart ddos-panel
 ```
 
-### Mở panel ra Internet trên port 80
+### Cấu hình port proxy
 
-```bash
-sudo /usr/local/sbin/ddos-panel --listen 0.0.0.0:80
-sudo systemctl restart ddos-panel
+Trong trang **Shield / Proxy**, mỗi dòng có dạng:
+
+```text
+tcp 80=80       # IP-VPS:80 -> Windows:80
+tcp 8081=80     # IP-VPS:8081 -> Windows:80
+both 7777       # TCP+UDP, giữ nguyên port 7777
 ```
 
-Panel sẽ ở `http://<IP-VPS>:80` (firewall đã mở sẵn 80). Vì là public, bảo vệ chỉ
-còn: mật khẩu PBKDF2 + cookie `SameSite=Strict` + chặn 8 lần sai/5 phút — nên dùng
-mật khẩu mạnh, và đừng map cổng game nào về 80 vì sẽ tranh port với panel.
-Muốn kín hơn: giữ `127.0.0.1` + SSH tunnel, hoặc đặt subdomain qua Cloudflare.
+Lưu là ruleset được kiểm tra cú pháp và áp dụng ngay. Không dùng port `8080`
+cho game nếu panel đang chạy ở `IP-VPS:8080`.
 
-Quay lại loopback: `sudo /usr/local/sbin/ddos-panel --listen 127.0.0.1:8080`.
+Panel trực tiếp trên port 8080 (tuỳ chọn):
 
-> Cách khác: `sudo bash setup-all.sh --panel-bind 0.0.0.0 --panel-port 80`.
+```bash
+sudo bash setup-all.sh --with-proxy --win-ip 160.22.107.22 \
+  --panel-bind 0.0.0.0 --panel-port 8080
+```
+
+Panel sẽ ở `http://<IP-VPS>:8080/`, còn người chơi vào `http://<IP-VPS>/`.
+
+Muốn kín hơn, giữ panel ở `127.0.0.1` và dùng SSH tunnel:
+
+```bash
+ssh -L 8080:127.0.0.1:8080 root@<IP-VPS>
+```
 
 ---
+
 
 ## Game chạy ngay trên VPS (không cần Windows)
 

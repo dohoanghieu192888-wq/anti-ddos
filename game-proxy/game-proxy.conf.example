@@ -6,10 +6,7 @@ GEO_MODE="vn-only"
 ALLOW_V6="no"
 ADMIN_PORTS="3389"
 PORTS=(
-  "both 7777"
-  "both 27015"
-  "tcp 8080=80"
-  "both 27000-27030"
+  "tcp 80=80"             # VPS:80 -> Windows:80 (URL công khai không cần ghi port)
 )
 UDP_PPS_PER_IP="200"
 TCP_NEWCONN_PER_IP="30"

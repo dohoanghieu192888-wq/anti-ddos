@@ -44,10 +44,9 @@ WIN_IP="10.10.0.5"        # IP server Windows (để "" nếu game chạy trên 
 FORWARD_MODE="proxy"      # proxy (SNAT, ẩn IP người chơi) | dnat (giữ IP thật)
 
 PORTS=(
-  "both 7777"             # TCP+UDP, giữ nguyên cổng 7777
+  "tcp 80=80"             # VPS:80 -> Windows:80 (truy cập http://IP-VPS/)
+  "tcp 8081=80"            # ví dụ đổi port public: VPS:8081 -> Windows:80
   "both 27015"
-  "tcp 8080=80"           # VPS:8080 -> Windows:80
-  "both 27000-27030"      # dải cổng
 )
 
 ADMIN_PORTS="3389"        # RDP: chỉ ADMIN_IPS vào được
