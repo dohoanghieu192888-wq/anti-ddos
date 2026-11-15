@@ -1,0 +1,11 @@
+[Unit]
+Description=Cap nhat DDoS blocklist hang ngay
+
+[Timer]
+OnBootSec=5min
+OnCalendar=daily
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

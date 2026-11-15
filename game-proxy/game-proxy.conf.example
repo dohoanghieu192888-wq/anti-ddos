@@ -1,0 +1,78 @@
+# =====================================================================
+#  game-proxy.conf — VPS Ubuntu làm trung gian chống DDoS cho server game
+#                                                                  (Windows)
+#  Cài tại: /etc/ddos/game-proxy.conf
+#  Sửa xong chạy: sudo gen-proxy-rules
+# =====================================================================
+
+# ---------------------------------------------------------------------
+#  IP của server Windows (game server).
+#  - Nếu Windows là máy riêng cùng nhà cung cấp: dùng IP private (10.x/192.168.x)
+#  - Nếu Windows nối qua WireGuard/Tailscale: dùng IP tunnel (10.66.0.2...)
+# ---------------------------------------------------------------------
+WIN_IP="10.10.0.5"
+
+# ---------------------------------------------------------------------
+#  Cách chuyển tiếp:
+#    proxy = SNAT/masquerade (mặc định, đơn giản nhất, chạy mọi nơi)
+#            -> Windows thấy IP của VPS, KHÔNG thấy IP thật người chơi.
+#    dnat  = chỉ DNAT, giữ IP thật người chơi
+#            -> Windows PHẢI route reply ngược về VPS
+#               (dùng khi Windows nối chung dải private với VPS, hoặc qua
+#                WireGuard với VPS là default gateway).
+# ---------------------------------------------------------------------
+FORWARD_MODE="proxy"
+
+# Card mạng: "auto" = tự phát hiện
+WAN_IF="auto"      # card hướng ra Internet (nhận kết nối người chơi)
+LAN_IF="auto"      # card đi tới Windows
+
+# ---------------------------------------------------------------------
+#  GeoIP: chỉ cho phép Việt Nam, chặn toàn bộ quốc gia khác
+#    vn-only = chặn tất cả IP không thuộc VN (trừ ADMIN_IPS)
+#    off     = không lọc theo quốc gia
+# ---------------------------------------------------------------------
+GEO_MODE="vn-only"
+ALLOW_V6="no"          # yes nếu có người chơi IPv6 (VPS cần IPv6)
+
+# ---------------------------------------------------------------------
+#  Cổng quản trị Windows (RDP/WinRM...). Chỉ ADMIN_IPS được vào.
+#  Để trống "" nếu không cần.
+# ---------------------------------------------------------------------
+ADMIN_PORTS="3389"
+
+# ---------------------------------------------------------------------
+#  Danh sách cổng game cần mở. Cú pháp mỗi dòng:
+#     "<tcp|udp|both> <cổng_VPS>[=<cổng_Windows>]"
+#   - không ghi =...  -> giữ nguyên số cổng
+#   - hỗ trợ dải cổng "27000-27030"
+# ---------------------------------------------------------------------
+PORTS=(
+  "both 7777"
+  "both 27015"
+  "tcp 8080=80"
+  "both 27000-27030"
+)
+
+# ---------------------------------------------------------------------
+#  Chống flood theo từng IP (cho cổng game)
+# ---------------------------------------------------------------------
+UDP_PPS_PER_IP="200"          # gói UDP/giây/IP
+TCP_NEWCONN_PER_IP="30"       # kết nối TCP mới/giây/IP
+TCP_CONN_PER_IP="60"          # kết nối TCP đồng thời/IP
+
+# ---------------------------------------------------------------------
+#  IP quản trị luôn được phép (không phụ thuộc GeoIP). Mỗi dòng 1 IP/CIDR.
+#  IP đang SSH vào VPS được installer tự thêm vào đây.
+# ---------------------------------------------------------------------
+ADMIN_IPS=(
+  "203.0.113.10"
+)
+
+# ---------------------------------------------------------------------
+#  GeoIP fail-open: nếu chưa tải được danh sách IP Việt Nam
+#    no  = chặn hết (an toàn, nhưng game không vào được)
+#    yes = cho qua hết (tạm thời mất tác dụng lọc quốc gia)
+#  Mặc định "no" + luôn có cache ở /var/lib/ddos/vn.zone
+# ---------------------------------------------------------------------
+GEOIP_FAIL_OPEN="no"

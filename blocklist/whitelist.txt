@@ -1,0 +1,9 @@
+# IP / CIDR KHÔNG BAO GIỜ bị chặn (mỗi dòng 1 mục)
+# Cài tại: /etc/ddos/whitelist.txt
+# Dùng cho: IP admin, IP monitoring, IP của CDN / load balancer phía trước.
+# Script update-blocklist.sh sẽ tự động bỏ các mục này khỏi blocklist,
+# và ddos.nft cũng cho các IP này đi qua trước mọi rule chặn.
+#
+# Ví dụ (bỏ dấu # để dùng):
+# 203.0.113.10
+# 198.51.100.0/24

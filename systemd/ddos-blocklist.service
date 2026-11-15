@@ -1,0 +1,11 @@
+[Unit]
+Description=Cap nhat DDoS blocklist cho nftables
+After=network-online.target nftables.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ddos-update-blocklist
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

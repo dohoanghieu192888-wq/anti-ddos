@@ -1,0 +1,11 @@
+[Unit]
+Description=Cap nhat danh sach IP Viet Nam (GeoIP) cho nftables
+After=network-online.target nftables.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/geoip-vn-update
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

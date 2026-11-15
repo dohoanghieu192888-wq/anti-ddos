@@ -1,0 +1,21 @@
+[Unit]
+Description=DDoS Panel - giao dien quan tri firewall va shield
+After=network-online.target nftables.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/sbin/ddos-panel
+Restart=always
+RestartSec=3
+# Panel cần quyền root để đọc/ghi nftables
+User=root
+# Giới hạn thiệt hại nếu panel bị lỗi
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectKernelTunables=no
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=Nap danh sach IP Viet Nam tu cache (boot)
+After=nftables.service
+Requires=nftables.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/geoip-vn-update --cache-only
+RemainAfterExit=yes

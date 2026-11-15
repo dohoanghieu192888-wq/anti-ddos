@@ -1,0 +1,38 @@
+#!/usr/sbin/nft -f
+# =====================================================================
+#  CHẾ ĐỘ KHẨN CẤP - nạp khi đang bị tấn công mạnh
+#    nft -f /etc/ddos/emergency-on.nft    (hoặc scripts/emergency-mode.sh on)
+#  Ngưỡng rất chặt: traffic hợp lệ cũng có thể bị chậm/chặn => chỉ dùng
+#  trong lúc bị tấn công, sau đó tắt bằng emergency-off.nft.
+# =====================================================================
+
+flush chain inet filter emergency
+
+table inet filter {
+	chain emergency {
+		# 1) SYN: tối đa 15 syn/giây mỗi IP
+		tcp flags & (fin|syn|rst|ack) == syn \
+			meter emg_syn { ip saddr limit rate over 15/second burst 30 packets } \
+			counter drop
+
+		# 2) Kết nối mới: tối đa 25/giây mỗi IP
+		ct state new \
+			meter emg_new { ip saddr limit rate over 25/second burst 50 packets } \
+			counter drop
+
+		# 3) Web: tối đa 20 kết nối đồng thời mỗi IP
+		ct state new tcp dport { 80, 443 } \
+			meter emg_conn { ip saddr ct count over 20 } counter drop
+
+		# 4) SSH: 2 lần/phút mỗi IP
+		tcp dport 22 ct state new \
+			meter emg_ssh { ip saddr limit rate over 2/minute burst 3 packets } \
+			counter accept
+		tcp dport 22 ct state new \
+			limit rate 10/minute log prefix "nft-emergency-ssh: " level warn
+		tcp dport 22 ct state new counter drop
+
+		# 5) Chặn hẳn các cổng UDP khuếch đại + dịch vụ không dùng
+		udp dport { 19, 53, 123, 137, 161, 389, 1900, 11211, 5353, 27015 } counter drop
+	}
+}
