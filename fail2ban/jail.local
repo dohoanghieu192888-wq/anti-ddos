@@ -1,48 +1,31 @@
 [DEFAULT]
-# ---------------------------------------------------------------------
-#  fail2ban cho hệ thống chống DDoS
-#  Cài tại: /etc/fail2ban/jail.local
-# ---------------------------------------------------------------------
-bantime  = 3600
+bantime = 3600
 findtime = 600
 maxretry = 5
-# Tự động tăng thời gian ban cho IP tái phạm (1h, 2h, 4h, ...)
 bantime.increment = true
-bantime.factor    = 2
-bantime.maxtime   = 604800
-# Bỏ qua loopback / mạng nội bộ
+bantime.factor = 2
+bantime.maxtime = 604800
 ignoreip = 127.0.0.1/8 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
-
-# iptables-multiport dùng backend iptables-nft của Ubuntu 20.04,
-# chạy song song an toàn với ruleset nftables riêng ở /etc/nftables.d/.
 banaction = iptables-multiport
 banaction_allports = iptables-allports
-action    = %(banaction)s[name=%(__name__)s, bantime="%(bantime)s", port="%(port)s", protocol="%(protocol)s", chain="%(chain)s"]
 
 [sshd]
-enabled  = true
-port     = ssh
-mode     = aggressive
+enabled = true
+port = ssh
+mode = aggressive
 maxretry = 4
 findtime = 300
-bantime  = 7200
+bantime = 7200
 
-# ---------------------------------------------------------------------
-#  Tự ban IP bị firewall drop nhiều lần (log prefix "nft-input-drop:")
-#  Đây là lớp chống scan/flood theo hành vi.
-# ---------------------------------------------------------------------
 [ddos-scanner]
-enabled  = true
-filter   = nft-input-drop
-backend  = systemd
+enabled = true
+filter = nft-input-drop
+backend = systemd
 journalmatch = _TRANSPORT=kernel
 maxretry = 25
 findtime = 60
-bantime  = 3600
+bantime = 3600
 
-# ---------------------------------------------------------------------
-#  Jail cho web server (bật nếu bạn có nginx/apache)
-# ---------------------------------------------------------------------
 [nginx-limit-req]
 enabled = false
 
@@ -52,9 +35,8 @@ enabled = false
 [nginx-badbots]
 enabled = false
 
-# IP tái phạm nhiều lần trên nhiều jail => ban 1 tuần
 [recidive]
-enabled  = true
+enabled = true
 maxretry = 5
 findtime = 86400
-bantime  = 604800
+bantime = 604800

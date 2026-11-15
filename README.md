@@ -97,17 +97,14 @@ cài các lệnh `ddos-status`, `ddos-emergency`, `ddos-update-blocklist`.
 
 ## Cấu hình cổng dịch vụ (bắt buộc kiểm tra)
 
-Mặc định chỉ mở **22, 80, 443**. Sửa `/etc/nftables.d/ddos.nft`, mục
-`DỊCH VỤ ĐƯỢC PHÉP`:
+Mặc định chỉ mở **22, 80, 443**. Sửa `/etc/nftables.d/ddos.nft` — tìm hai dòng
+`tcp dport 22 ...` và `tcp dport { 80, 443 } ...`, thêm cổng mới ngay dưới:
 
 ```nft
-# --- HTTP / HTTPS
 tcp dport { 80, 443 } ct state new counter accept
-
-# --- Thêm dịch vụ khác tại đây, ví dụ:
 tcp dport 8443 ct state new counter accept
-# tcp dport 53  counter accept      # nếu chạy DNS server
-# udp dport 53  counter accept
+tcp dport 53 counter accept
+udp dport 53 counter accept
 ```
 
 Áp dụng lại (không cần reboot):
@@ -175,9 +172,9 @@ Bộ đếm quan trọng cần xem:
 
 | Counter | Ý nghĩa |
 |---|---|
-| `syn_flood_v4` | SYN vượt 60/s từ 1 IP — đang bị SYN flood |
+| `syn_v4` | SYN vượt 60/s từ 1 IP — đang bị SYN flood |
 | `newconn_v4` | IP tạo > 25 kết nối mới/s — scan hoặc flood |
-| `web_conn_v4` | IP giữ > 60 kết nối web — slowloris |
+| `webconn_v4` | IP giữ > 60 kết nối web — slowloris |
 | `ssh_v4` + `nft-ssh-flood` | Brute-force SSH |
 | `blackhole_v4` | Gói từ IP trong blocklist |
 
@@ -213,7 +210,7 @@ Rồi `sudo nginx -t && sudo systemctl reload nginx`.
    LDAP(389), SSDP(1900), memcached(11211), mDNS(5353): các cổng bị lợi dụng để
   反射/amplification (hệ số khuếch đại 3–50000 lần).
 5. **`meter newconn_v4`** — 1 IP tạo > 25 kết nối mới/s bị drop (chống scan/flood).
-6. **`meter web_conn_v4 { ip saddr ct count over 60 }`** — giới hạn số kết nối
+6. **`meter webconn_v4 { ip saddr ct count over 60 }`** — giới hạn số kết nối
    đồng thời *theo từng IP* (chống slowloris và flood giữ socket).
 7. **SSH rate limit** 6 lần/phút mỗi IP + log để fail2ban ban.
 8. **`policy drop`** — mặc định chặn tất cả, chỉ mở đúng cổng khai báo.
@@ -322,7 +319,7 @@ timeout (đã đặt sẵn 1M; nếu vẫn gặp, tăng hashsize tương ứng t
 
 **Kiểm tra rule có thực sự chặn không**
 ```bash
-sudo nft -a list chain inet filter input | grep -E 'syn_flood|newconn|web_conn'
+sudo nft -a list chain inet filter input | grep -E 'syn_v4|newconn|webconn'
 ```
 
 ---

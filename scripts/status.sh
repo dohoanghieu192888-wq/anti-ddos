@@ -1,61 +1,43 @@
 #!/usr/bin/env bash
-# =====================================================================
-#  status.sh - xem nhanh tình trạng firewall / tải hệ thống
-#    sudo ddos-status
-# =====================================================================
 set -uo pipefail
 
-line() { printf '%s\n' "--------------------------------------------------------------"; }
-hdb() { printf '\n\033[1m== %s ==\033[0m\n' "$*"; }
+[[ ${EUID} -eq 0 ]] || { echo "cần root" >&2; exit 1; }
 
-[[ ${EUID} -eq 0 ]] || { echo "Cần quyền root (sudo)." >&2; exit 1; }
+sec() { printf '\n\033[1m== %s ==\033[0m\n' "$*"; }
+ips() { nft list set inet filter "$1" 2>/dev/null | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?' | wc -l; }
+tcp_state() { nft list chain inet filter emergency 2>/dev/null | grep -q tcp && echo BẬT || echo tắt; }
 
-hdb "BỘ ĐẾM CỦA FIREWALL (gói tin khớp rule)"
-nft -a list table inet filter 2>/dev/null | grep -E 'counter packets' \
-	| sed -E 's/^\s*//' | sed -E 's/^([a-z0-9 ]{0,60}).*(counter packets [0-9]+ bytes [0-9]+).*/\1 \2/' \
-	| head -40
+sec "Bộ đếm firewall"
+nft -a list table inet filter 2>/dev/null | grep 'counter packets' | sed 's/^[[:space:]]*//' | head -40
 
-hdb "CONNTRACK"
-if [[ -r /proc/sys/net/netfilter/nf_conntrack_count ]]; then
-	echo "đang dùng : $(cat /proc/sys/net/netfilter/nf_conntrack_count)"
-	echo "tối đa    : $(cat /proc/sys/net/netfilter/nf_conntrack_max)"
-else
-	echo "module nf_conntrack chưa nạp (hoặc không có netfilter)"
-fi
+sec "Conntrack"
+printf '%s / %s\n' "$(cat /proc/sys/net/netfilter/nf_conntrack_count 2>/dev/null || echo '?')" \
+	"$(cat /proc/sys/net/netfilter/nf_conntrack_max 2>/dev/null || echo '?')"
 
-hdb "BLOCKLIST"
-echo "IPv4 bị chặn: $(nft list set inet filter blackhole_v4 2>/dev/null | grep -oE '^[^;]*' | tr ',' '\n' | wc -l) mục"
-echo "Whitelist   : $(nft list set inet filter whitelist_v4 2>/dev/null | grep -c ',' || echo 0)"
+sec "Danh sách"
+printf 'blackhole: %s\nwhitelist : %s\nkhẩn cấp  : %s\n' \
+	"$(ips blackhole_v4)" "$(ips whitelist_v4)" "$(tcp_state)"
 
-hdb "CHẾ ĐỘ KHẨN CẤP"
-if nft list chain inet filter emergency 2>/dev/null | grep -q 'tcp'; then
-	echo "ĐANG BẬT (chain emergency có rule)"
-else
-	echo "tắt"
-fi
+sec "Tải hệ thống"
+printf 'load : %s\ncpu  : %s core\n' "$(cut -d' ' -f1-3 /proc/loadavg)" "$(grep -c ^processor /proc/cpuinfo)"
+free -h 2>/dev/null | sed 's/^/       /'
+ss -s 2>/dev/null | grep -i '^TCP'
 
-hdb "TẢI HỆ THỐNG"
-echo "loadavg   : $(cut -d' ' -f1-3 /proc/loadavg)"
-echo "CPU       : $(grep -c ^processor /proc/cpuinfo) core"
-free -h 2>/dev/null | sed 's/^/            /'
-echo "TCP hiện tại: $(ss -s 2>/dev/null | grep -i '^TCP' || echo '?')"
-echo
-echo "Top 10 IP đang có nhiều kết nối nhất:"
-ss -tan 2>/dev/null | awk 'NR>1 {print $5}' | cut -d: -f1 | sort | uniq -c | sort -rn | head -10
+sec "Top IP kết nối"
+ss -tan 2>/dev/null | awk 'NR>1{print $5}' | cut -d: -f1 | sort | uniq -c | sort -rn | head -10
 
-hdb "FAIL2BAN"
+sec "fail2ban"
 if command -v fail2ban-client >/dev/null; then
 	fail2ban-client status 2>/dev/null | sed 's/^/  /'
 	for j in sshd ddos-scanner recidive; do
-		fail2ban-client status "$j" 2>/dev/null | sed -n '2,4p' | sed 's/^/  /'
+		fail2ban-client status "$j" 2>/dev/null | sed -n '2,3p' | sed 's/^/  /'
 	done
 else
-	echo "fail2ban chưa cài"
+	echo "  chưa cài"
 fi
 
-hdb "SYSCTL ĐANG ÁP DỤNG"
+sec "sysctl"
 for k in net.ipv4.tcp_syncookies net.ipv4.tcp_max_syn_backlog net.core.somaxconn \
 	net.ipv4.tcp_congestion_control net.core.default_qdisc; do
-	printf '  %-40s = %s\n' "$k" "$(sysctl -n "$k" 2>/dev/null || echo '?')"
+	printf '  %-38s %s\n' "$k" "$(sysctl -n "$k" 2>/dev/null || echo '?')"
 done
-line
