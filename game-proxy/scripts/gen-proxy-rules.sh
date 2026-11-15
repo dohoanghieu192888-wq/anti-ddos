@@ -4,6 +4,7 @@ set -Eeuo pipefail
 CONF=/etc/ddos/game-proxy.conf
 OUT=/etc/nftables.d/game-proxy.nft
 FWD=/etc/nftables.d/zz-proxy-forward.nft
+LOCAL=/etc/nftables.d/zz-local-svc.nft
 
 die() { echo "lỗi: $*" >&2; exit 1; }
 join() { local IFS=,; echo "$*"; }
@@ -12,29 +13,60 @@ det_if() { ip -4 route get "$1" 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="d
 [[ ${EUID} -eq 0 ]] || die "cần root"
 [[ -r $CONF ]] || die "thiếu $CONF"
 . "$CONF"
-[[ -n ${WIN_IP:-} ]] || die "WIN_IP chưa đặt"
 [[ ${#PORTS[@]} -gt 0 ]] || die "PORTS rỗng"
 case ${FORWARD_MODE:-proxy} in proxy|dnat) ;; *) die "FORWARD_MODE phải là proxy hoặc dnat" ;; esac
+WIN_IP=${WIN_IP:-}
 
-[[ ${WAN_IF:-auto} == auto || -z ${WAN_IF:-} ]] && WAN_IF=$(det_if 1.1.1.1)
-[[ ${LAN_IF:-auto} == auto || -z ${LAN_IF:-} ]] && LAN_IF=$(det_if "$WIN_IP")
+WAN_IF=${WAN_IF:-auto}
+LAN_IF=${LAN_IF:-auto}
+[[ $WAN_IF == auto || -z $WAN_IF ]] && WAN_IF=$(det_if 1.1.1.1)
+[[ $LAN_IF == auto || -z $LAN_IF ]] && LAN_IF=$(det_if "${WIN_IP:-1.1.1.1}")
 WAN_IF=${WAN_IF:-eth0}
 LAN_IF=${LAN_IF:-$WAN_IF}
 
 VPS_PORTS=()
 RULES=()
+LOCAL_RULES=()
+REMOTE=0
+
 for spec in "${PORTS[@]}"; do
 	read -r proto portspec <<<"$spec"
 	[[ $proto =~ ^(tcp|udp|both)$ ]] || die "proto sai: $spec"
-	[[ $portspec =~ ^[0-9]{1,5}(-[0-9]{1,5})?(=[0-9]{1,5}(-[0-9]{1,5})?)?$ ]] || die "cổng sai: $spec"
+	[[ $portspec =~ ^[0-9]{1,5}(-[0-9]{1,5})?(=(local:|127\.0\.0\.1:)?[0-9]{1,5}(-[0-9]{1,5})?)?$ ]] || die "cổng sai: $spec"
 	vps=${portspec%%=*}
 	dst=""
 	[[ $portspec == *=* ]] && dst=${portspec#*=}
+	is_local=0
+	case $dst in
+	local:*)
+		dst=${dst#local:}
+		is_local=1
+		;;
+	127.0.0.1:*)
+		dst=${dst#127.0.0.1:}
+		is_local=1
+		;;
+	esac
 	for n in ${vps//-/ } ${dst//-/ }; do
 		((n >= 1 && n <= 65535)) || die "cổng ngoài 1-65535: $spec"
 	done
-	target=$WIN_IP
-	[[ -n $dst ]] && target=$WIN_IP:$dst
+	if ((is_local)); then
+		local_port=${dst:-$vps}
+		target=127.0.0.1:$local_port
+		case $proto in
+		tcp) LOCAL_RULES+=("tcp dport $local_port counter accept") ;;
+		udp) LOCAL_RULES+=("udp dport $local_port counter accept") ;;
+		both)
+			LOCAL_RULES+=("tcp dport $local_port counter accept")
+			LOCAL_RULES+=("udp dport $local_port counter accept")
+			;;
+		esac
+	else
+		[[ -n $WIN_IP ]] || die "cần WIN_IP cho cổng không phải local: $spec"
+		REMOTE=1
+		target=$WIN_IP
+		[[ -n $dst ]] && target=$WIN_IP:$dst
+	fi
 	VPS_PORTS+=("$vps")
 	case $proto in
 	tcp) RULES+=("tcp dport $vps dnat ip to $target") ;;
@@ -49,7 +81,9 @@ done
 AP_ITEMS=()
 for ap in ${ADMIN_PORTS:-}; do
 	[[ $ap =~ ^[0-9]{1,5}(-[0-9]{1,5})?$ ]] || continue
+	[[ -n $WIN_IP ]] || continue
 	AP_ITEMS+=("$ap")
+	REMOTE=1
 	RULES+=("tcp dport $ap dnat ip to $WIN_IP")
 	RULES+=("udp dport $ap dnat ip to $WIN_IP")
 done
@@ -120,7 +154,7 @@ table inet gameproxy {
 		$(printf '%s\n\t\t' "${RULES[@]}")
 	}
 EOF
-	if [[ ${FORWARD_MODE:-proxy} == proxy ]]; then
+	if [[ ${FORWARD_MODE:-proxy} == proxy && -n $WIN_IP ]]; then
 		cat <<EOF
 
 	chain postrouting {
@@ -136,27 +170,49 @@ EOF
 	echo "table inet filter {"
 	echo "	chain proxy_fwd {"
 	printf '		iifname "%s" ip daddr %s counter accept\n' "$WAN_IF" "$WIN_IP"
-	[[ $LAN_IF != "$WAN_IF" ]] && printf '\t\toifname "%s" ip daddr %s counter accept\n' "$LAN_IF" "$WIN_IP"
+	[[ $LAN_IF != "$WAN_IF" ]] && printf '		oifname "%s" ip daddr %s counter accept\n' "$LAN_IF" "$WIN_IP"
 	echo "	}"
 	echo "}"
 } >"$FWD.tmp"
 
-if ! nft -c -f "$OUT.tmp"; then
-	rm -f "$OUT.tmp" "$FWD.tmp"
-	die "ruleset sai cú pháp, giữ nguyên cấu hình cũ"
+if ((${#LOCAL_RULES[@]})); then
+	{
+		echo "table inet filter {"
+		echo "	chain local_svc {"
+		printf '\t\t%s\n' "${LOCAL_RULES[@]}"
+		echo "	}"
+		echo "}"
+	} >"$LOCAL.tmp"
+else
+	: >"$LOCAL.tmp"
 fi
-if ! nft -c -f "$FWD.tmp"; then
-	rm -f "$OUT.tmp" "$FWD.tmp"
-	die "forward rule sai cú pháp, giữ nguyên cấu hình cũ"
-fi
+((REMOTE)) || : >"$FWD.tmp"
+
+for f in "$OUT.tmp" "$FWD.tmp" "$LOCAL.tmp"; do
+	if ! nft -c -f "$f"; then
+		rm -f "$OUT.tmp" "$FWD.tmp" "$LOCAL.tmp"
+		die "ruleset sai cú pháp, giữ nguyên cấu hình cũ"
+	fi
+done
 mv "$OUT.tmp" "$OUT"
 mv "$FWD.tmp" "$FWD"
+mv "$LOCAL.tmp" "$LOCAL"
+
 nft -f "$OUT"
 echo "đã áp dụng NAT cho ${#VPS_PORTS[@]} cổng: ${VPS_PORTS[*]}"
 
+if nft list chain inet filter local_svc >/dev/null 2>&1; then
+	nft flush chain inet filter local_svc
+	if ((${#LOCAL_RULES[@]})); then
+		nft -f "$LOCAL"
+	fi
+fi
+
 if nft list chain inet filter proxy_fwd >/dev/null 2>&1; then
 	nft flush chain inet filter proxy_fwd
-	nft -f "$FWD"
-else
+	if ((REMOTE)); then
+		nft -f "$FWD"
+	fi
+elif ((REMOTE)); then
 	echo "cảnh báo: chưa có chain 'inet filter proxy_fwd' (cài install.sh trước)" >&2
 fi

@@ -19,7 +19,9 @@ PROXY = "/etc/ddos/game-proxy.conf"
 NFT = shutil.which("nft") or "/usr/sbin/nft"
 ITER = 120000
 IPRE = re.compile(r"^(\d{1,3}\.){3}\d{1,3}(/\d{1,2})?$")
-PORTRE = re.compile(r"^(tcp|udp|both)\s+(\d{1,5})(?:-(\d{1,5}))?(?:=(\d{1,5})(?:-(\d{1,5}))?)?$")
+PORTRE = re.compile(
+    r"^(tcp|udp|both)\s+(\d{1,5})(?:-(\d{1,5}))?(?:=(?:local:|127\.0\.0\.1:)?(\d{1,5})(?:-(\d{1,5}))?)?$"
+)
 SESS = {}
 FAILS = {}
 CACHE = {}
@@ -258,8 +260,11 @@ def proxy_write(old, form):
         if not IPRE.match(a):
             return False, "IP quản trị không hợp lệ: " + a
     win = form.get("WIN_IP", "").strip()
-    if not IPRE.match(win):
+    if win and not IPRE.match(win):
         return False, "WIN_IP không hợp lệ"
+    remote = [p for p in ports if "=local:" not in p and "=127.0.0.1:" not in p]
+    if not win and (remote or form.get("ADMIN_PORTS", "").strip()):
+        return False, "cần IP Windows, hoặc dùng cổng dạng 14445=local:7777"
     mode = form.get("FORWARD_MODE", "proxy")
     if mode not in ("proxy", "dnat"):
         return False, "FORWARD_MODE không hợp lệ"
@@ -483,7 +488,7 @@ def view_proxy(token, msg=""):
   </div>
   <div class="card"><h3>Cổng game</h3>
     <textarea name="PORTS" spellcheck="false">{h(chr(10).join(c["PORTS"]))}</textarea>
-    <p class="muted" style="font-size:12px">both 7777 · tcp 8080=80 · both 27000-27030</p>
+    <p class="muted" style="font-size:12px">both 14445=local:7777 · tcp 8080=80 · both 27000-27030</p>
   </div>
   <div class="card"><h3>IP quản trị</h3>
     <textarea name="ADMIN_IPS" spellcheck="false">{h(chr(10).join(c["ADMIN_IPS"]))}</textarea>
@@ -688,12 +693,25 @@ def main(argv):
     if len(argv) > 1 and argv[1] == "--init":
         user = argv[argv.index("--user") + 1] if "--user" in argv else "admin"
         return init_conf(user, force="--force" in argv)
+    if len(argv) > 2 and argv[1] == "--listen":
+        conf = load_conf()
+        if not conf:
+            print("chưa có " + CONF, file=sys.stderr)
+            return 2
+        host, _, port = argv[2].rpartition(":")
+        if not port.isdigit():
+            print("dùng: --listen 0.0.0.0:80", file=sys.stderr)
+            return 2
+        conf["bind"], conf["port"] = host or "0.0.0.0", int(port)
+        save_conf(conf)
+        print("panel: %s:%s" % (conf["bind"], conf["port"]))
+        return 0
     if len(argv) > 2 and argv[1] == "--hash":
         salt, digest = pwhash(argv[2])
         print(json.dumps({"salt": salt, "hash": digest}, indent=2))
         return 0
     if len(argv) > 1 and argv[1] in ("-h", "--help"):
-        print("ddos-panel [--init [--user N] [--force]] [--hash PW]")
+        print("ddos-panel [--init [--user N] [--force]] [--listen HOST:PORT] [--hash PW]")
         return 0
 
     conf = load_conf()

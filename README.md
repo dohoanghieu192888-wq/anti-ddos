@@ -267,9 +267,35 @@ journalctl -u ddos-panel -n 30
 sudo /usr/local/sbin/ddos-panel --init --force && sudo systemctl restart ddos-panel
 ```
 
-> Nếu muốn nghe ra ngoài, sửa `bind` trong `/etc/ddos/panel.json` sang `0.0.0.0`
-> và **chỉ cho IP của bạn** vào port đó bằng `ADMIN_PORTS` trong shield proxy,
-> hoặc luôn dùng SSH tunnel (an toàn hơn).
+### Mở panel ra Internet trên port 80
+
+```bash
+sudo /usr/local/sbin/ddos-panel --listen 0.0.0.0:80
+sudo systemctl restart ddos-panel
+```
+
+Panel sẽ ở `http://<IP-VPS>:80` (firewall đã mở sẵn 80). Vì là public, bảo vệ chỉ
+còn: mật khẩu PBKDF2 + cookie `SameSite=Strict` + chặn 8 lần sai/5 phút — nên dùng
+mật khẩu mạnh, và đừng map cổng game nào về 80 vì sẽ tranh port với panel.
+Muốn kín hơn: giữ `127.0.0.1` + SSH tunnel, hoặc đặt subdomain qua Cloudflare.
+
+Quay lại loopback: `sudo /usr/local/sbin/ddos-panel --listen 127.0.0.1:8080`.
+
+> Cách khác: `sudo bash setup-all.sh --panel-bind 0.0.0.0 --panel-port 80`.
+
+---
+
+## Game chạy ngay trên VPS (không cần Windows)
+
+Trong `/etc/ddos/game-proxy.conf`, để `WIN_IP=""` và map cổng về local:
+
+```bash
+PORTS=( "both 14445=local:7777" )
+```
+
+Người chơi vào `IP-VPS:14445` → game ở `7777` trên chính VPS, vẫn được lọc
+**chỉ IP Việt Nam** + rate limit; cổng `7777` không mở trực tiếp ra ngoài.
+Chi tiết: [`game-proxy/README.md`](game-proxy/README.md).
 
 ---
 

@@ -40,7 +40,7 @@ Cấu hình nằm ở `/etc/ddos/game-proxy.conf`.
 ## Cấu hình `/etc/ddos/game-proxy.conf`
 
 ```bash
-WIN_IP="10.10.0.5"        # IP server Windows
+WIN_IP="10.10.0.5"        # IP server Windows (để "" nếu game chạy trên chính VPS)
 FORWARD_MODE="proxy"      # proxy (SNAT, ẩn IP người chơi) | dnat (giữ IP thật)
 
 PORTS=(
@@ -68,6 +68,26 @@ sudo proxy-status        # xem trạng thái
 
 Không cần mở port bằng `ufw`/`iptables` gì thêm, và **không có process nào listen**
 trên các cổng game — kernel NAT nhận và chuyển tiếp trực tiếp.
+
+---
+
+## Game chạy ngay trên VPS (không cần Windows)
+
+```bash
+WIN_IP=""                          # để trống nếu mọi cổng đều là local
+PORTS=(
+  "both 14445=local:7777"          # người chơi vào VPS:14445 -> game ở 7777
+  "tcp  8080=127.0.0.1:80"         # hoặc viết 127.0.0.1:<cổng>
+)
+```
+
+- Người chơi chỉ cần biết `IP-VPS:14445`; cổng thật `7777` **không mở ra ngoài**
+  (firewall chỉ mở 22/80/443) nên không thể DDoS trực tiếp vào game.
+- Game chỉ cần listen `0.0.0.0:7777` hoặc `127.0.0.1:7777`.
+- Cơ chế: `dnat ip to 127.0.0.1:<cổng>` + `net.ipv4.conf.all.route_localnet=1`
+  (installer bật sẵn), và cổng đích được mở ở INPUT qua chain `local_svc`.
+- Đổi cổng công khai bao nhiêu cũng được (`14445`, `25565`, `30000`…), miễn là
+  chưa trùng port khác đang dùng.
 
 ---
 

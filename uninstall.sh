@@ -10,7 +10,8 @@ nft delete table inet gamefilter 2>/dev/null || true
 
 systemctl disable --now ddos-panel ddos-geoip.timer ddos-geoip-boot.service ddos-blocklist.timer 2>/dev/null || true
 
-rm -f /etc/nftables.d/ddos.nft /etc/nftables.d/game-proxy.nft /etc/nftables.d/zz-proxy-forward.nft \
+rm -f /etc/nftables.d/ddos.nft /etc/nftables.d/game-proxy.nft \
+	/etc/nftables.d/zz-proxy-forward.nft /etc/nftables.d/zz-local-svc.nft \
 	/etc/ddos/emergency-on.nft /etc/ddos/emergency-off.nft \
 	/etc/ddos/whitelist.txt /etc/ddos/forward-extra.rules \
 	/etc/ddos/game-proxy.conf /etc/ddos/panel.json \

@@ -56,6 +56,9 @@ table inet filter {
 	chain proxy_fwd {
 	}
 
+	chain local_svc {
+	}
+
 	chain input {
 		type filter hook input priority filter; policy drop;
 
@@ -97,6 +100,8 @@ table inet filter {
 		tcp dport 22 ct state new counter drop
 
 		tcp dport { 80, 443 } ct state new counter accept
+
+		jump local_svc
 
 		limit rate 20/minute log prefix "nft-input-drop: " level info
 		counter drop

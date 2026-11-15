@@ -15,7 +15,8 @@ mkdir -p /etc/ddos /etc/nftables.d /var/lib/ddos
 if [[ ! -f $CONF ]]; then
 	install -m 0640 "$D/game-proxy.conf.example" "$CONF"
 	if [[ -t 0 ]]; then
-		read -r -p "IP server Windows: " win_ip
+		echo "IP server Windows (để trống nếu game chạy ngay trên VPS này):"
+		read -r -p "> " win_ip
 		[[ $win_ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] \
 			&& sed -i "s|^WIN_IP=.*|WIN_IP=\"$win_ip\"|" "$CONF" && ok "WIN_IP=$win_ip" \
 			|| warn "IP không hợp lệ, sửa $CONF rồi chạy lại"
@@ -31,7 +32,7 @@ command -v nft >/dev/null || {
 command -v curl >/dev/null || die "thiếu curl"
 
 info "bật ip_forward"
-printf 'net.ipv4.ip_forward = 1\nnet.ipv4.conf.all.forwarding = 1\n' \
+printf 'net.ipv4.ip_forward = 1\nnet.ipv4.conf.all.forwarding = 1\nnet.ipv4.conf.all.route_localnet = 1\n' \
 	>/etc/sysctl.d/99-game-proxy.conf
 sysctl -p /etc/sysctl.d/99-game-proxy.conf >/dev/null 2>&1 || true
 ok "ip_forward=$(sysctl -n net.ipv4.ip_forward)"
